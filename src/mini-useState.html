@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div class="click1">点击</div>
+  <div class="result1">结果：</div>
+  <div class="click2">点击2</div>
+  <div class="result2">结果：</div>
+  <script>
+    // 在react中，会使用链表保存hooks的数据
+    let isMount = true; // 记录是初始化还是更新
+    let workInProgressHook = null; // 当前正在执行的hook，是一个链表，如果组件中使用了多次useState，就会用workInProgressHook.next把这些useState串起来
+
+    // fiber表示当前function组件的fiber
+    // memoizedState是hook保存的数据（在这里就是useState保存的数据）
+    // stateNode就是function组件本身
+    const fiber = {
+      // 在functionComponent中所有hooks的hook对象组成的链表保存在该属性中，每次更新时，触发组件函数重新执行，都会从这个链表开始，一个一个的获取useState对应的hook对象
+      // 对应的就是run函数中的workInProgressHook = fiber.memoizedState就是表示开始遍历这个链表
+      // useState函数中workInProgressHook = workInProgressHook.next就是遍历到下一个useState对应的hook
+      memoizedState: null,
+      stateNode: App, // 指向App函数
+    }
+
+    function run() { // 执行run，也就是执行一边function组件，第一次run之后，isMount赋值为false，表示不是初始化了
+      // 每一次run，都会将组件的fiber中保存的fiber.memoizedState链表的第一个节点赋值给workInProgressHook
+      workInProgressHook = fiber.memoizedState;
+      // 执行一遍函数组件（stateNode()）
+      const app = fiber.stateNode();
+      // 将isMount赋值false，表示不是初始化了
+      isMount = false;
+      return app;
+    }
+
+    function dispatchAction(queue, action) { // 更新useState
+      console.log('queue:', queue)
+      console.log('action:', action)
+      // 创建一个update对象
+      const update = {
+        action, // 更新执行的函数
+        next: null, // 与同一个hook的其他更新形成的单向环状链表，比如在一个函数中多次调用同一个useState的dispatch，在本例子中就是触发onClick时多次调用updateNum更新状态
+      }
+      // 操作queue.pending这个单向环状链表，将本次的useState更新保存到queue.pending中
+      if (queue.pending === null) {
+        update.next = update;
+      } else {
+        // queue.pending是一个环状链表
+        // 假设当前的queue.pending为：3 -> 0 -> 1 -> 2 -> 3
+        // 此时我们再调用一次useState的dispatch，queue.pending将要变成这样： 4 -> 0 -> 1 -> 2 -> 3 -> 4
+        // 我们知道queue.pending是这个链表中最后一项，也就是3，queue.pending.next就是链表头，也就是0
+        // 首先将本次更新的4指向0，update就是4，update.next = queue.pending.next就将4指向了0
+        update.next = queue.pending.next
+        // 然后将3指向4
+        queue.pending.next = update;
+      }
+      queue.pending = update;
+      run();
+    }
+
+    function useState(initialState) {
+      let hook;
+      if (isMount) {
+        // 如果是组件初始化，就会初始化一个hook对象，并赋值hook.memoizedState为传入useState的初始值
+        hook = { // 组件中每个useState都会有一个自己的hook对象，所以useState与useState之间不会互相干扰
+          queue: { // 保存update对象的queue，即在dispatchAction中使用到的queue
+            pending: null // 保存最后一个更新 如环状链表中 3 -> 0 -> 1 -> 2 -> 3，这里的pending指向3，pending.next就指向0了
+          },
+          memoizedState: initialState, // 当前hook的数据
+          next: null, // 指向下一个hook，与其形成一个单向无环链表
+        }
+        if (fiber.memoizedState === null) {
+          // 如果组件的fiber节点的memoizedState是null，也就是当前执行的是组件中的第一个useState，则将当前创建的hook赋值给它
+          fiber.memoizedState = hook;
+        } else {
+          // 如果组件的fiber节点的memoizedState不是null，表示当前执行的是组件中的第二个或者第三个等的useState，就用workInProgressHook.next将当前的hook与前一个hook连起来
+          workInProgressHook.next = hook;
+        }
+        // 将hook设置为当前处理的hook，workInProgressHook
+        workInProgressHook = hook;
+      } else {// 如果是调用useState的dispatch触发状态更新，则走这个else这个逻辑
+        // 更新状态时，找到useState对应的hook对象
+        // 为什么这里workInProgressHook就是对应当前的hooks呢，因为每处理完一个hooks，就会workInProgressHook = workInProgressHook.next，意思就是在上一轮完了之后workInProgressHook就会指向下一个将要处理的hooks的hook对象了
+        // 所以当前拿到的就是对应的hook对象
+        hook = workInProgressHook;
+        console.log('workInProgressHook',workInProgressHook);
+        // 这里workInProgressHook = workInProgressHook.next的操作是 为了下一个hook函数执行到这里的时候，workInProgressHook就是这个hook的hook对象
+        // 比如当前例子中使用了两个useState，当点击div触发状态更新，那么两个useState都会执行一遍
+        // 当执行第一个useState执行到这里的时候，上一行的hook=workInProgressHook就是这个useState(0)的hook对象
+        // 而下面这一行workInProgressHook = workInProgressHook.next，workInProgressHook此时就是下一个useState了，就是useState(false)对应的hook对象
+        // 这样做是为了：当执行到第二个useState到这里时，上面的hook = workInProgressHook，中的hook就是第二个useState的hook对象，也就是当前处理的useState的hook对象
+        // 也就是说，下面这行的操作与本次处理的useState无关！！！
+        // 所以我们知道
+        workInProgressHook = workInProgressHook.next;
+      }
+      let baseState = hook.memoizedState;
+      if (hook.queue.pending) { // 这里什么时候才有hook.queue.pending呢
+        // 在调用useState的dispatch触发状态更新时，就会创建一个update并赋值给hook.queue.pending，可以看到dispatchAction函数
+        let firstUpdate = hook.queue.pending.next;
+        do { // 遍历pending中的更新
+          const action = firstUpdate.action;
+          baseState = action(baseState); // action就是我们传进去useState的dispatch中的回调函数，执行之后得到更新后的state
+          firstUpdate = firstUpdate.next;
+        } while (firstUpdate !== hook.queue.pending.next);
+        hook.queue.pending = null;
+      }
+      hook.memoizedState = baseState;
+      console.log('hook',hook)
+      console.log('workInProgressHook',workInProgressHook)
+      return [baseState, dispatchAction.bind(null, hook.queue)];
+    }
+
+    function App() {
+      // 执行useState函数
+      const [num, updateNum] = useState(0);
+      const [state, updateState] = useState(false);
+
+      var div1 = document.querySelector('.click1');
+      var result1 = document.querySelector('.result1');
+      var div2 = document.querySelector('.click2');
+      var result2 = document.querySelector('.result2');
+      result1.innerText = num;
+      result2.innerText = state;
+      div1.onclick = function () {
+        updateNum(num => num + 1);
+      }
+      div2.onclick = function(){
+        updateState(state => !state);
+      }
+      return {
+        onClick() {
+          updateNum(num => num + 1);
+        },
+      }
+    }
+
+    // 调用run，执行App函数
+    window.app = run();
+
+    // 总结
+    // 1. 为什么useState与useState之间的数据不会互相影响？
+    // 因为函数组件中，每个useState对应着一个hook对象，hook对象用于记录useState的更新、更新后的值和next指针指向下一个useState对应的hook对象
+    // 所以useState与useState之间是互相独立的
+
+  </script>
+</body>
+
+</html>

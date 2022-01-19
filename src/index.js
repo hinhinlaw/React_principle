@@ -1,17 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
-
+// import App from './App';
+// import UseEffectNuseLayoutEffect from './UseEffectNuseLayoutEffect'
+import Diff from './Diff'
+// import SetState from './SetState';
+// import UseState from './UseState';
+// import UseEffect from './UseEffect';
+// import UseRef from './UseRef';
+// import TimeSplit from './TimeSplit';
+// import BatchedUpdates from './BatchedUpdates';
+import InterruptDetail from './InterruptDetail';
+console.log(ReactDOM)
 ReactDOM.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <InterruptDetail/>,
   document.getElementById('root')
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+// const rootNode = document.getElementById('root');
+// ReactDOM.unstable_createRoot(rootNode).render(<UseEffect />);

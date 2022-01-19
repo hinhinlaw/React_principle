@@ -1,13 +1,24 @@
-import logo from './logo.svg';
+import React,{useState,useEffect,useLayoutEffect} from 'react';
 import './App.css';
 
 function App() {
+  const [num, updateNum] = useState(0);
+
+  useEffect(()=>{
+    console.log('react')
+  },[num])
+
+  useLayoutEffect(()=>{
+    if(num === 2){
+      updateNum(num + 'layout!');
+    }
+  },[num])
+
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
+        <p onClick={()=>updateNum(num+1)}>
+          <code title={num}>{num}</code>
         </p>
         <a
           className="App-link"
